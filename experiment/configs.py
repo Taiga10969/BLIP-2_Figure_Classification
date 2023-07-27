@@ -2,11 +2,12 @@ class Config(object):
     def __init__(self):
         
         self.dataset_path = '/taiga/Datasets/moonshot-dataset'
+        self.record_dir = '/taiga/experiment/BLIP-2_figure_classification/record'
 
         self.model_name = 'Salesforce/blip2-opt-2.7b'
 
         self.epoch = 10
-        self.batch_size = 32
+        self.batch_size = 64
 
         self.max_length = 16
 
@@ -40,5 +41,5 @@ class Config(object):
         >> verbose    : 更新ごとに stdout にメッセージを出力するか (default=False)
         []
         '''
-        self.t_0 = 15
+        self.t_0 = 500
         self.t_mult = 1
