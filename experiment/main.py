@@ -30,7 +30,13 @@ tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 model = Blip2ForConditionalGeneration.from_pretrained(config.model_name, 
                                                       torch_dtype=torch.float16)
 
-# 'qformer.encoder'を含むサブモジュール以外のパラメータをフリーズする
+## 'qformer.encoder'を含むサブモジュール以外のパラメータをフリーズする
+
+# Vision encoder をフリーズする
+for name, param in model.named_parameters():
+    if 'vision_model.encoder' in name:
+        param.requires_grad = False
+
 #for name, param in model.named_parameters():
 #    if 'qformer.encoder' not in name:
 #        param.requires_grad = False
@@ -80,6 +86,8 @@ lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimize
                                                               T_mult=config.t_mult)
 
 best_val_loss=10.0
+best_train_loss=10.0
+iteration=0
 
 for epoch in range(1, config.epoch+1, 1):
     with tqdm(train_loader) as pbar:
@@ -92,6 +100,7 @@ for epoch in range(1, config.epoch+1, 1):
 
         for img_paths, prompts, labels in pbar:
             train_count+=1
+            iteration+=1
             optimizer.zero_grad()
 
             image_list = []
@@ -119,13 +128,27 @@ for epoch in range(1, config.epoch+1, 1):
 
             
             loss = outputs.loss.mean()
+
+            sum_train_loss += loss.item()
             
             loss.backward()
             optimizer.step()
+            lr_scheduler.step()
 
-            pbar.set_postfix(OrderedDict(loss=loss.item(), ave_loss=sum_train_loss/train_count, lr = optimizer.param_groups[0]['lr']))
+            ave_loss=sum_train_loss/train_count,
+
+            pbar.set_postfix(OrderedDict(loss=loss.item(), ave_loss=ave_loss[0], lr = optimizer.param_groups[0]['lr']))
+            with open(config.record_dir+'/loss_record.csv', 'a') as f:
+                print(f'{iteration}, {loss.item()}', file=f)
+            
+            if train_count%100 ==0 and best_train_loss > ave_loss[0]:
+                best_train_loss = ave_loss[0]
+                torch.save(model.module.state_dict(), config.record_dir+"/train_best.pth")
+            
         train_loss=sum_train_loss/train_count
-        lr_scheduler.step()
+
+        
+        
 
     with tqdm(test_loader) as pbar:
         pbar.set_description(f'[valid epoch : {epoch}]')
@@ -163,16 +186,17 @@ for epoch in range(1, config.epoch+1, 1):
 
             
             loss = outputs.loss.mean()
+            sum_valid_loss += loss.item()
 
             pbar.set_postfix(OrderedDict(loss=loss.item(), ave_loss=sum_valid_loss/valid_count))
 
         valid_loss=sum_valid_loss/valid_count
         
-    torch.save(model.state_dict(), config.record_dir+"/epoch_"+str(epoch)+".pth")
+    torch.save(model.module.state_dict(), config.record_dir+"/epoch_"+str(epoch)+".pth")
 
     if best_val_loss > valid_loss:
         best_val_loss = valid_loss
-        torch.save(model.state_dict(), config.record_dir+"/best_val_loss.pth")
+        torch.save(model.module.state_dict(), config.record_dir+"/best_val_loss.pth")
 
-    with open(config.record_dir+'/loss_record.csv', 'a') as f:
+    with open(config.record_dir+'/epoch_loss_record.csv', 'a') as f:
         print(f'{epoch}, {train_loss}, {valid_loss}', file=f)
