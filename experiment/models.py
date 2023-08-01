@@ -44,13 +44,13 @@ if __name__ == '__main__':
         #print('param.requires_grad = ', param.requires_grad)
 
 
-    # 'qformer.encoder'を含むサブモジュール以外のパラメータをフリーズする
-    for name, param in model.named_parameters():
-        if 'qformer.encoder' not in name:
-            param.requires_grad = False
+    ## 'qformer.encoder'を含むサブモジュール以外のパラメータをフリーズする
+    #for name, param in model.named_parameters():
+    #    if 'qformer.encoder' not in name:
+    #        param.requires_grad = False
     
     for name, param in model.named_parameters():
-        if any(f'language_model.model.decoder.layers.{str(layer_num)}.' in name for layer_num in range(1, 16)):
+        if any(f'language_model.model.decoder.layers.{layer_num}.' in name for layer_num in range(1, 16)):
             param.requires_grad = False
 
 
